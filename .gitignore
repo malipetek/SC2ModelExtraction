@@ -1,0 +1,6 @@
+CascLib/
+__pycache__/
+dist/
+venv/
+cache/
+temp_casc/
