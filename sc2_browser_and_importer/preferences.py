@@ -16,7 +16,7 @@ class SC2AssetBrowserPreferencesV2(bpy.types.AddonPreferences):
         layout.prop(self, "sc2_install_path")
 
 def register():
-    bpy.utils.register_class(SC2AssetBrowserPreferencesV2)
+    pass
 
 def unregister():
-    bpy.utils.unregister_class(SC2AssetBrowserPreferencesV2)
+    pass

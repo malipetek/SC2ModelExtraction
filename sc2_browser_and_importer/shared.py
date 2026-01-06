@@ -264,6 +264,8 @@ def select_bones_handles(ob, pointers):
 
 
 class ArmatureObjectPanel(bpy.types.Panel):
+    bl_idname = 'OBJECT_PT_M3_ARMATURE'
+    bl_label = 'M3 Armature'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = 'object'
@@ -271,7 +273,11 @@ class ArmatureObjectPanel(bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
-        return context.object.type == 'ARMATURE'
+        return context.object is not None and context.object.type == 'ARMATURE'
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text='M3 Armature Properties')
 
 
 def get_armature_parent(ob):
@@ -457,9 +463,13 @@ class M3ObjectPropertyGroup(M3PropertyGroup):
 
 
 class M3CollectionOpBase(bpy.types.Operator):
+    """Base class for collection operators - not registered directly"""
     bl_idname = 'm3.collection_base'
     bl_label = 'Base Collection Operator'
     bl_options = {'UNDO'}
+    
+    # Prevent auto_load from registering this base class
+    is_registered = True
 
     collection: bpy.props.StringProperty(default='m3_generics')
     index: bpy.props.IntProperty()
@@ -470,6 +480,9 @@ class M3CollectionOpAdd(M3CollectionOpBase):
     bl_idname = 'm3.collection_add'
     bl_label = 'Add Collection Item'
     bl_description = 'Adds a new item to the collection'
+
+    collection: bpy.props.StringProperty(default='m3_generics')
+    index: bpy.props.IntProperty()
 
     def invoke(self, context, event):
         collection = context.object.path_resolve(self.collection)
@@ -482,6 +495,9 @@ class M3CollectionOpRemove(M3CollectionOpBase):
     bl_idname = 'm3.collection_remove'
     bl_label = 'Remove Collection Item'
     bl_description = 'Removes the active item from the collection'
+
+    collection: bpy.props.StringProperty(default='m3_generics')
+    index: bpy.props.IntProperty()
 
     def invoke(self, context, event):
         collection = context.object.path_resolve(self.collection)
@@ -505,6 +521,10 @@ class M3CollectionOpMove(M3CollectionOpBase):
     bl_label = 'Move Collection Item'
     bl_description = 'Moves the active item up/down in the list'
 
+    collection: bpy.props.StringProperty(default='m3_generics')
+    index: bpy.props.IntProperty()
+    shift: bpy.props.IntProperty()
+
     def invoke(self, context, event):
         collection = context.object.path_resolve(self.collection)
 
@@ -521,6 +541,8 @@ class M3CollectionOpDuplicate(M3CollectionOpBase):
     bl_label = 'Duplicate Collection Item'
     bl_description = 'Duplicates the active item in the collection'
 
+    collection: bpy.props.StringProperty(default='m3_generics')
+    index: bpy.props.IntProperty()
     dup_action_keyframes: bpy.props.BoolProperty(default=False)
 
     def invoke(self, context, event):
@@ -540,6 +562,8 @@ class M3HandleListOpAdd(M3CollectionOpBase):
     bl_label = 'Add Item To List'
     bl_description = 'Adds a new item to the list'
 
+    collection: bpy.props.StringProperty(default='m3_generics')
+
     def invoke(self, context, event):
         m3_item_add(context.object.path_resolve(self.collection))
         return {'FINISHED'}
@@ -550,6 +574,7 @@ class M3HandleListOpRemove(M3CollectionOpBase):
     bl_label = 'Remove Item From List'
     bl_description = 'Removes the item from the list'
 
+    collection: bpy.props.StringProperty(default='m3_generics')
     index: bpy.props.IntProperty(options=set())
 
     def invoke(self, context, event):
@@ -925,7 +950,6 @@ classes = (
     M3PropertyGroup,
     M3VolumePropertyGroup,
     M3ObjectPropertyGroup,
-    M3CollectionOpBase,
     M3CollectionOpAdd,
     M3CollectionOpRemove,
     M3CollectionOpMove,

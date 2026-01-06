@@ -766,3 +766,15 @@ classes = (
     SystemPanelNoise,
     CopyPanel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_particlesystems
+    del bpy.types.Object.m3_particlesystems_index
+    del bpy.types.Object.m3_particlesystems_version
+    del bpy.types.Object.m3_particlecopies
+    del bpy.types.Object.m3_particlecopies_index

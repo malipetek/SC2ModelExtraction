@@ -181,3 +181,21 @@ classes = (
     ToolPanel,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_bone_id_lockers
+    del bpy.types.Bone.bl_handle
+    del bpy.types.EditBone.bl_handle
+    del bpy.types.PoseBone.bl_handle
+    del bpy.types.PoseBone.m3_export_cull
+    del bpy.types.PoseBone.m3_bind_scale
+    del bpy.types.PoseBone.m3_location_hex_id
+    del bpy.types.PoseBone.m3_rotation_hex_id
+    del bpy.types.PoseBone.m3_scale_hex_id
+    del bpy.types.PoseBone.m3_batching_hex_id
+    del bpy.types.PoseBone.m3_batching

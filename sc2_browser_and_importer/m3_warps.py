@@ -70,3 +70,12 @@ classes = (
     Menu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_warps
+    del bpy.types.Object.m3_warps_index

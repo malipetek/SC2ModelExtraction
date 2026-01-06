@@ -194,3 +194,16 @@ classes = (
     ShapePanel,
     BodyPanel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_physicsshapes
+    del bpy.types.Object.m3_physicsshapes_index
+    del bpy.types.Object.m3_physicsshapes_version
+    del bpy.types.Object.m3_rigidbodies
+    del bpy.types.Object.m3_rigidbodies_index
+    del bpy.types.Object.m3_rigidbodies_version

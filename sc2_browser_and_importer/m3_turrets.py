@@ -171,3 +171,13 @@ classes = (
     TurretMenu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_turrets
+    del bpy.types.Object.m3_turrets_index
+    del bpy.types.Object.m3_turrets_part_version

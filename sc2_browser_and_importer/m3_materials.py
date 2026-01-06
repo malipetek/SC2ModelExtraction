@@ -962,3 +962,26 @@ classes = (
     M3MaterialLayerOpUnlink,
     M3MaterialLayerOpSearch,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_materialrefs
+    del bpy.types.Object.m3_materialrefs_index
+    del bpy.types.Object.m3_materials_standard
+    del bpy.types.Object.m3_materials_standard_version
+    del bpy.types.Object.m3_materials_displacement
+    del bpy.types.Object.m3_materials_composite
+    del bpy.types.Object.m3_materials_terrain
+    del bpy.types.Object.m3_materials_volume
+    del bpy.types.Object.m3_materials_volumenoise
+    del bpy.types.Object.m3_materials_creep
+    del bpy.types.Object.m3_materials_stb
+    del bpy.types.Object.m3_materials_reflection
+    del bpy.types.Object.m3_materials_reflection_version
+    del bpy.types.Object.m3_materials_lensflare
+    del bpy.types.Object.m3_materials_lensflare_version
+    del bpy.types.Object.m3_materials_buffer

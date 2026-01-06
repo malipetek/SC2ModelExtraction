@@ -79,3 +79,12 @@ classes = (
     Menu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_shadowboxes
+    del bpy.types.Object.m3_shadowboxes_index

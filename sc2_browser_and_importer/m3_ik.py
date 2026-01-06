@@ -76,3 +76,12 @@ classes = (
     Menu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_ikjoints
+    del bpy.types.Object.m3_ikjoints_index

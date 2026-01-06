@@ -106,3 +106,13 @@ classes = (
     Menu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_cameras
+    del bpy.types.Object.m3_cameras_index
+    del bpy.types.Object.m3_cameras_version

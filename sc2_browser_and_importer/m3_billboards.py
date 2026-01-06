@@ -71,3 +71,12 @@ classes = (
     Menu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_billboards
+    del bpy.types.Object.m3_billboards_index

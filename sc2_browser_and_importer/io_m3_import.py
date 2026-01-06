@@ -1051,219 +1051,57 @@ class Importer:
                 layer_section_to_index[m3_layer_field.index] = len(ob.m3_materiallayers) - 1
                 setattr(mat, 'layer_' + layer_name, layer.bl_handle)
 
+            # Simplified material setup for GLTF export compatibility
+            # Direct texture->BSDF connections without complex node chains
             if bl_mat and bsdf:
                 tree = bl_mat.node_tree
                 links = tree.links
 
-                def get_node_setup_uv(layer_name, loc):
+                def get_node_simple(layer_name, loc):
+                    """Get texture node with simple positioning, no complex UV setup"""
                     info = created_layer_nodes.get(layer_name)
                     if not info: return None
                     node = info['node']
                     node.location = loc
-                    if info['uv_idx'] > 0:
-                        uv_map = tree.nodes.new('ShaderNodeUVMap')
-                        # Map uv_source index to Blender UV layers
-                        # uv_idx 0 is default (no UV Map node needed, or implicit)
-                        # uv_idx 1 is UVMap.001, etc.
-                        # But we need to know what the UV maps are named.
-                        # Since we create them later in create_mesh, we assume standard naming:
-                        # uv0, uv1, uv2...
-                        uv_map.uv_map = "uv" + str(info['uv_idx'])
-                        uv_map.location = (loc[0] - 200, loc[1])
-                        links.new(uv_map.outputs['UV'], node.inputs['Vector'])
+                    # Skip UV node setup for simplicity - use default UVs
                     return node
                 
-                # --- 1. Diffuse & Team Color & Decal ---
-                final_color_socket = None
-                diff_node = get_node_setup_uv('diff', (-900, 300))
+                # Set default roughness to reduce shininess
+                if 'Roughness' in bsdf.inputs:
+                    bsdf.inputs['Roughness'].default_value = 0.7
+                # Reduce specular for less shine
+                if 'Specular IOR Level' in bsdf.inputs:
+                    bsdf.inputs['Specular IOR Level'].default_value = 0.3
+                elif 'Specular' in bsdf.inputs:
+                    bsdf.inputs['Specular'].default_value = 0.3
                 
+                # --- 1. Diffuse (direct connection, no Team Color Mix) ---
+                diff_node = get_node_simple('diff', (-300, 300))
                 if diff_node:
-                    final_color_socket = diff_node.outputs['Color']
+                    if 'Base Color' in bsdf.inputs:
+                        links.new(diff_node.outputs['Color'], bsdf.inputs['Base Color'])
+                    # Don't auto-connect alpha from diffuse - causes unwanted transparency
+                    # Alpha should only come from explicit alpha layers (handled below)
                     
-                    # Team Color Mix
-                    # Check if color_channels == 1 (RGBA), which usually implies Team Color in Alpha
-                    diff_info = created_layer_nodes.get('diff')
-                    if diff_info and diff_info['channels'] == 1: 
-                        mix_tc = tree.nodes.new('ShaderNodeMixRGB')
-                        mix_tc.label = "Team Color Mix"
-                        mix_tc.location = (-600, 300)
-                        mix_tc.blend_type = 'MIX'
-                        mix_tc.inputs['Color1'].default_value = (1.0, 0.0, 0.0, 1.0) # Red (User Team Color)
-                        
-                        # Use Alpha as Factor
-                        links.new(diff_node.outputs['Alpha'], mix_tc.inputs['Fac'])
-                        # Use Diffuse Color as Background
-                        links.new(diff_node.outputs['Color'], mix_tc.inputs['Color2'])
-                        final_color_socket = mix_tc.outputs['Color']
-
-                # Decal Mix
-                decal_node = get_node_setup_uv('decal', (-600, 450))
-                if decal_node:
-                    # Invert Decal Alpha for mixing
-                    # We swap inputs so Diffuse is Color2 (often preferred by exporters as the 'base' or 'active' layer)
-                    invert_decal_a = tree.nodes.new('ShaderNodeMath')
-                    invert_decal_a.operation = 'SUBTRACT'
-                    invert_decal_a.inputs[0].default_value = 1.0
-                    invert_decal_a.location = (-450, 500)
-                    links.new(decal_node.outputs['Alpha'], invert_decal_a.inputs[1])
-
-                    mix_decal = tree.nodes.new('ShaderNodeMixRGB')
-                    mix_decal.label = "Decal Mix"
-                    mix_decal.location = (-300, 300)
-                    mix_decal.blend_type = 'MIX'
-                    
-                    # Fac = 1 - Alpha
-                    links.new(invert_decal_a.outputs['Value'], mix_decal.inputs['Fac'])
-                    
-                    # Color1 = Decal (shown when Fac=0 -> Alpha=1)
-                    links.new(decal_node.outputs['Color'], mix_decal.inputs['Color1'])
-                    
-                    # Color2 = Base/Diffuse (shown when Fac=1 -> Alpha=0)
-                    if final_color_socket:
-                        links.new(final_color_socket, mix_decal.inputs['Color2'])
-                    
-                    final_color_socket = mix_decal.outputs['Color']
-
-                if final_color_socket and 'Base Color' in bsdf.inputs:
-                    links.new(final_color_socket, bsdf.inputs['Base Color'])
-                    
-                # --- 2. Normal Map (Reconstruction from Alpha/Green) ---
-                norm_node = get_node_setup_uv('norm', (-1200, -300))
+                # --- 2. Normal Map (simple connection with Normal Map node) ---
+                norm_node = get_node_simple('norm', (-500, -200))
                 if norm_node:
-                    sep_rgb = tree.nodes.new('ShaderNodeSeparateRGB')
-                    sep_rgb.location = (-1000, -300)
-                    links.new(norm_node.outputs['Color'], sep_rgb.inputs['Image'])
-                    
-                    # --- Green Channel (Y) ---
-                    # Invert Green: 1 - G
-                    invert_g = tree.nodes.new('ShaderNodeMath')
-                    invert_g.operation = 'SUBTRACT'
-                    invert_g.inputs[0].default_value = 1.0
-                    invert_g.location = (-800, -200)
-                    links.new(sep_rgb.outputs['G'], invert_g.inputs[1])
-
-                    # Map to [-1, 1]: (Val - 0.5) * 2
-                    sub_g = tree.nodes.new('ShaderNodeMath')
-                    sub_g.operation = 'SUBTRACT'
-                    sub_g.inputs[1].default_value = 0.5
-                    sub_g.location = (-600, -200)
-                    links.new(invert_g.outputs['Value'], sub_g.inputs[0])
-                    
-                    mul_g = tree.nodes.new('ShaderNodeMath')
-                    mul_g.operation = 'ADD' # X + X = 2X
-                    mul_g.location = (-400, -200)
-                    links.new(sub_g.outputs['Value'], mul_g.inputs[0])
-                    links.new(sub_g.outputs['Value'], mul_g.inputs[1])
-                    
-                    # Square it: Y^2
-                    sq_g = tree.nodes.new('ShaderNodeMath')
-                    sq_g.operation = 'MULTIPLY'
-                    sq_g.location = (-200, -200)
-                    links.new(mul_g.outputs['Value'], sq_g.inputs[0])
-                    links.new(mul_g.outputs['Value'], sq_g.inputs[1])
-
-                    # --- Alpha Channel (X) ---
-                    # Map to [-1, 1]: (Val - 0.5) * 2
-                    sub_a = tree.nodes.new('ShaderNodeMath')
-                    sub_a.operation = 'SUBTRACT'
-                    sub_a.inputs[1].default_value = 0.5
-                    sub_a.location = (-600, -400)
-                    links.new(norm_node.outputs['Alpha'], sub_a.inputs[0])
-                    
-                    mul_a = tree.nodes.new('ShaderNodeMath')
-                    mul_a.operation = 'ADD' # X + X = 2X
-                    mul_a.location = (-400, -400)
-                    links.new(sub_a.outputs['Value'], mul_a.inputs[0])
-                    links.new(sub_a.outputs['Value'], mul_a.inputs[1])
-                    
-                    # Square it: X^2
-                    sq_a = tree.nodes.new('ShaderNodeMath')
-                    sq_a.operation = 'MULTIPLY'
-                    sq_a.location = (-200, -400)
-                    links.new(mul_a.outputs['Value'], sq_a.inputs[0])
-                    links.new(mul_a.outputs['Value'], sq_a.inputs[1])
-                    
-                    # --- Calculate Blue (Z) ---
-                    # Z = sqrt(1 - (X^2 + Y^2))
-                    add_xy_sq = tree.nodes.new('ShaderNodeMath')
-                    add_xy_sq.operation = 'ADD'
-                    add_xy_sq.location = (0, -300)
-                    links.new(sq_g.outputs['Value'], add_xy_sq.inputs[0])
-                    links.new(sq_a.outputs['Value'], add_xy_sq.inputs[1])
-                    
-                    sub_from_1 = tree.nodes.new('ShaderNodeMath')
-                    sub_from_1.operation = 'SUBTRACT'
-                    sub_from_1.inputs[0].default_value = 1.0
-                    sub_from_1.location = (200, -300)
-                    links.new(add_xy_sq.outputs['Value'], sub_from_1.inputs[1])
-                    
-                    calc_z = tree.nodes.new('ShaderNodeMath')
-                    calc_z.operation = 'POWER'
-                    calc_z.inputs[1].default_value = 0.5 # sqrt
-                    calc_z.location = (400, -300)
-                    links.new(sub_from_1.outputs['Value'], calc_z.inputs[0])
-                    
-                    # --- Combine ---
-                    comb_rgb = tree.nodes.new('ShaderNodeCombineRGB')
-                    comb_rgb.location = (600, -300)
-                    links.new(norm_node.outputs['Alpha'], comb_rgb.inputs['R'])
-                    links.new(invert_g.outputs['Value'], comb_rgb.inputs['G'])
-                    links.new(calc_z.outputs['Value'], comb_rgb.inputs['B'])
-                    
                     norm_map = tree.nodes.new('ShaderNodeNormalMap')
-                    norm_map.location = (800, -300)
+                    norm_map.location = (-200, -200)
                     norm_map.space = 'TANGENT'
-                    norm_map.inputs['Strength'].default_value = 0.5
-                    links.new(comb_rgb.outputs['Image'], norm_map.inputs['Color'])
-                    
+                    norm_map.inputs['Strength'].default_value = 1.0
+                    links.new(norm_node.outputs['Color'], norm_map.inputs['Color'])
                     if 'Normal' in bsdf.inputs:
                         links.new(norm_map.outputs['Normal'], bsdf.inputs['Normal'])
 
-                # --- 3. Specular & Gloss ---
-                spec_node = get_node_setup_uv('spec', (-600, 0))
-                if spec_node:
-                    spec_info = created_layer_nodes.get('spec')
-                    # Check if we should use Alpha channel
-                    # Enum: 0=RGB, 1=ARGB, 2=A, 3=R, 4=G, 5=B
-                    socket_to_use = spec_node.outputs['Color']
-                    if spec_info:
-                        ch = spec_info['channels']
-                        if ch == 2: # Alpha Only
-                            socket_to_use = spec_node.outputs['Alpha']
-                        # Add more channel logic if needed (R/G/B splitting)
-
-                    if 'Specular IOR Level' in bsdf.inputs:
-                        links.new(socket_to_use, bsdf.inputs['Specular IOR Level'])
-                    elif 'Specular' in bsdf.inputs:
-                        links.new(socket_to_use, bsdf.inputs['Specular'])
-
-                gloss_node = get_node_setup_uv('gloss', (-600, -150))
-                if gloss_node:
-                    math_inv = tree.nodes.new('ShaderNodeMath')
-                    math_inv.operation = 'SUBTRACT'
-                    math_inv.inputs[0].default_value = 1.0
-                    math_inv.location = (-300, -150)
-                    links.new(gloss_node.outputs['Color'], math_inv.inputs[1])
-                    links.new(math_inv.outputs['Value'], bsdf.inputs['Roughness'])
-
-                # --- 4. Emission ---
-                emis_node = get_node_setup_uv('emis1', (-600, -450))
+                # --- 3. Emission ---
+                emis_node = get_node_simple('emis1', (-300, -400))
                 if emis_node:
                     emission_input = bsdf.inputs.get('Emission') or bsdf.inputs.get('Emission Color')
                     if emission_input:
                         links.new(emis_node.outputs['Color'], emission_input)
                     if 'Emission Strength' in bsdf.inputs:
                         bsdf.inputs['Emission Strength'].default_value = 1.0
-
-                # --- 5. Alpha ---
-                alpha_node = get_node_setup_uv('alpha1', (-600, -600)) or get_node_setup_uv('alphaMaskLayer', (-600, -600))
-                if alpha_node:
-                     links.new(alpha_node.outputs['Color'], bsdf.inputs['Alpha'])
-                     # Blender 4.2+ removed blend_method and shadow_method from Material
-                     if hasattr(bl_mat, 'blend_method'):
-                         bl_mat.blend_method = 'BLEND'
-                     if hasattr(bl_mat, 'shadow_method'):
-                         bl_mat.shadow_method = 'HASHED'
 
         for matref, m3_matref in zip(ob.m3_materialrefs, self.m3[self.m3_model.material_references]):
             mat = shared.m3_pointer_get(getattr(self.ob, matref.mat_type), matref.mat_handle)
@@ -1491,6 +1329,13 @@ class Importer:
             bmesh.ops.weld_verts(bm, targetmap=doubles)
 
             bm.to_mesh(mesh)
+
+            # Calculate tangents for glTF/GLB export compatibility
+            if mesh.uv_layers:
+                try:
+                    mesh.calc_tangents()
+                except RuntimeError:
+                    pass  # May fail if mesh has no faces or invalid geometry
 
             for g, used in zip(mesh_ob.vertex_groups, vertex_groups_used):
                 if not used:

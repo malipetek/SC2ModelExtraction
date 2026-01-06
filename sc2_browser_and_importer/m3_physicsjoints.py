@@ -129,3 +129,12 @@ classes = (
     Menu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_physicsjoints
+    del bpy.types.Object.m3_physicsjoints_index

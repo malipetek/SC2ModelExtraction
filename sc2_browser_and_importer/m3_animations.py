@@ -220,3 +220,13 @@ classes = (
     M3AnimationActionNewOp,
     M3AnimationActionUnlinkOp,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_animations_default
+    del bpy.types.Object.m3_animation_groups
+    del bpy.types.Object.m3_animation_groups_index

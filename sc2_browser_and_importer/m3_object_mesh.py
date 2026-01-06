@@ -163,3 +163,16 @@ classes = (
     ClothSimOpSelect,
     ClothSimOpSet,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_mesh_batches
+    del bpy.types.Object.m3_mesh_export
+    del bpy.types.Object.m3_mesh_uv0
+    del bpy.types.Object.m3_mesh_uv1
+    del bpy.types.Object.m3_mesh_uv2
+    del bpy.types.Object.m3_mesh_uv3

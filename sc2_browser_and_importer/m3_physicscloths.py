@@ -223,3 +223,15 @@ classes = (
     ClothPanel,
     ClothConstraintsPanel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_cloths
+    del bpy.types.Object.m3_cloths_index
+    del bpy.types.Object.m3_cloths_version
+    del bpy.types.Object.m3_clothconstraintsets
+    del bpy.types.Object.m3_clothconstraintsets_index

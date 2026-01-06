@@ -112,3 +112,17 @@ classes = (
     AttachmentList,
     Panel,
 )
+
+
+def register():
+    register_props()
+    bpy.app.handlers.load_post.append(attachment_name_list_verify)
+    bpy.app.handlers.load_post.append(attachmentpoint_names_fix)
+
+
+def unregister():
+    bpy.app.handlers.load_post.remove(attachment_name_list_verify)
+    bpy.app.handlers.load_post.remove(attachmentpoint_names_fix)
+    del bpy.types.Scene.m3_attachment_names
+    del bpy.types.Object.m3_attachmentpoints
+    del bpy.types.Object.m3_attachmentpoints_index

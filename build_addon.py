@@ -10,7 +10,7 @@ def get_version_parts(content):
     raise ValueError("Could not find version in __init__.py")
 
 def increment_version():
-    init_path = os.path.join('m3studio-main', '__init__.py')
+    init_path = os.path.join('sc2_browser_and_importer', '__init__.py')
     with open(init_path, 'r') as f:
         content = f.read()
     
@@ -36,21 +36,21 @@ def build():
     if not os.path.exists('dist'):
         os.makedirs('dist')
 
-    # Clean up old m3studio-main zip files
+    # Clean up old sc2_browser_and_importer zip files
     for filename in os.listdir('dist'):
-        if filename.startswith('m3studio-main') and filename.endswith('.zip'):
+        if filename.startswith('sc2_browser_and_importer') and filename.endswith('.zip'):
             print(f"Removing old version: {filename}")
             os.remove(os.path.join('dist', filename))
 
     version = increment_version()
-    zip_name = f"m3studio-main_v{version}.zip"
+    zip_name = f"sc2_browser_and_importer_v{version}.zip"
     zip_path = os.path.join('dist', zip_name)
     
     print(f"Creating {zip_name}...")
     
     # Create the zip file
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk('m3studio-main'):
+        for root, dirs, files in os.walk('sc2_browser_and_importer'):
             # Filter out unwanted directories
             dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', '.vscode', 'dist']]
             

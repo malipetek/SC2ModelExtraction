@@ -79,3 +79,13 @@ classes = (
     Menu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_hittest_tight
+    del bpy.types.Object.m3_hittests
+    del bpy.types.Object.m3_hittests_index

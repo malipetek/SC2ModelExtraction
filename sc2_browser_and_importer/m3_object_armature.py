@@ -227,3 +227,16 @@ classes = (
     OptionsPanel,
     BoundsPanel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_filepath_export
+    del bpy.types.Object.m3_export_opts
+    del bpy.types.Object.m3_options
+    del bpy.types.Object.m3_model_version
+    del bpy.types.Object.m3_mesh_version
+    del bpy.types.Object.m3_bounds

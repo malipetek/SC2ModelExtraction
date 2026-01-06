@@ -489,3 +489,15 @@ classes = (
     RibbonPanelNoise,
     SplinePanel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_ribbons
+    del bpy.types.Object.m3_ribbons_index
+    del bpy.types.Object.m3_ribbons_version
+    del bpy.types.Object.m3_ribbonsplines
+    del bpy.types.Object.m3_ribbonsplines_index

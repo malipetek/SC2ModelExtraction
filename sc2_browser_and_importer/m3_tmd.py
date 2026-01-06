@@ -82,3 +82,12 @@ classes = (
     # Menu,
     # Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_tmd
+    del bpy.types.Object.m3_tmd_index

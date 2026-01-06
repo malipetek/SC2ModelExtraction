@@ -117,3 +117,13 @@ classes = (
     Menu,
     Panel,
 )
+
+
+def register():
+    register_props()
+
+
+def unregister():
+    del bpy.types.Object.m3_forces
+    del bpy.types.Object.m3_forces_index
+    del bpy.types.Object.m3_forces_version
