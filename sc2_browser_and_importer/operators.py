@@ -27,6 +27,266 @@ class SC2_OT_ImportMap(bpy.types.Operator):
 
         return {'FINISHED'}
 
+
+class SC2_OT_SearchMaps(bpy.types.Operator):
+    """Search for SC2 maps in CASC archive and local cache"""
+    bl_idname = "sc2.search_maps"
+    bl_label = "Search SC2 Maps"
+    bl_description = "Search for maps in SC2 CASC archives and local map cache"
+    
+    def execute(self, context):
+        scene = context.scene
+        query = scene.sc2_map_search_query.strip()
+        
+        if not query:
+            query = "*"
+        
+        # Clear previous results
+        scene.sc2_map_results.clear()
+        
+        map_count = 0
+        
+        # 1. Search in CASC for campaign/scenario files
+        try:
+            casc = CascWrapper()
+            if casc.open_storage():
+                self.report({'INFO'}, f"Searching CASC for maps...")
+                
+                # Search patterns for map-related content in CASC
+                # SC2 stores maps differently - look for Campaign scenarios and map data
+                search_patterns = [
+                    "*Campaign*/*.SC2Map*",  # Campaign maps
+                    "*Maps*",                 # General maps folder
+                    "*.SC2Map",               # Direct SC2Map files
+                    "*scenario*",             # Scenario files
+                ]
+                
+                seen_paths = set()
+                
+                for pattern in search_patterns:
+                    results = casc.search_files(pattern)
+                    for file_path in results:
+                        if file_path in seen_paths:
+                            continue
+                        seen_paths.add(file_path)
+                        
+                        # Filter by user query if specified
+                        if query != "*" and query.lower() not in file_path.lower():
+                            continue
+                        
+                        # Accept map-related files
+                        path_lower = file_path.lower()
+                        if any(ext in path_lower for ext in ['.sc2map', 'scenario', 'mapinfo']):
+                            item = scene.sc2_map_results.add()
+                            item.name = os.path.basename(file_path)
+                            item.path = file_path
+                            item.map_type = self._get_map_type(file_path) + " (CASC)"
+                            map_count += 1
+                
+                casc.close_storage()
+                
+        except Exception as e:
+            self.report({'WARNING'}, f"CASC search error: {str(e)}")
+        
+        # 2. Search in local SC2 Maps directories (outside CASC)
+        local_map_dirs = self._get_local_map_directories()
+        
+        for maps_dir in local_map_dirs:
+            if os.path.exists(maps_dir):
+                self.report({'INFO'}, f"Searching {maps_dir}...")
+                map_count += self._search_directory(scene, maps_dir, query)
+        
+        # 3. Search in Battle.net cache for downloaded maps (.s2ma files)
+        cache_dirs = self._get_cache_directories()
+        
+        for cache_dir in cache_dirs:
+            if os.path.exists(cache_dir):
+                self.report({'INFO'}, f"Searching cache: {cache_dir}...")
+                map_count += self._search_cache_directory(scene, cache_dir, query)
+        
+        if map_count == 0:
+            self.report({'WARNING'}, "No maps found. Try placing .SC2Map files in your SC2 Maps folder.")
+        else:
+            self.report({'INFO'}, f"Found {map_count} map(s)")
+        
+        return {'FINISHED'}
+    
+    def _get_local_map_directories(self):
+        """Get paths to local SC2 Maps directories"""
+        dirs = []
+        
+        # User's Documents folder
+        home = os.path.expanduser("~")
+        
+        # macOS paths
+        dirs.append(os.path.join(home, "Documents", "StarCraft II", "Maps"))
+        dirs.append(os.path.join(home, "Library", "Application Support", "Blizzard", "StarCraft II", "Maps"))
+        
+        # Also check SC2 installation path from preferences
+        try:
+            preferences = bpy.context.preferences.addons[__package__].preferences
+            sc2_path = preferences.sc2_install_path
+            if sc2_path:
+                dirs.append(os.path.join(sc2_path, "Maps"))
+        except:
+            pass
+        
+        # Common macOS SC2 installation
+        dirs.append("/Applications/StarCraft II/Maps")
+        
+        return dirs
+    
+    def _get_cache_directories(self):
+        """Get paths to Battle.net map cache"""
+        dirs = []
+        home = os.path.expanduser("~")
+        
+        # macOS cache locations
+        dirs.append(os.path.join(home, "Library", "Application Support", "Blizzard", "StarCraft II", "Cache"))
+        dirs.append("/Users/Shared/Blizzard/StarCraft II/Cache")
+        
+        return dirs
+    
+    def _search_directory(self, scene, directory, query):
+        """Search a directory for .SC2Map files"""
+        count = 0
+        try:
+            for root, dirs, files in os.walk(directory):
+                for filename in files:
+                    if filename.lower().endswith('.sc2map'):
+                        # Filter by query
+                        if query != "*" and query.lower() not in filename.lower():
+                            continue
+                        
+                        filepath = os.path.join(root, filename)
+                        item = scene.sc2_map_results.add()
+                        item.name = filename
+                        item.path = filepath
+                        item.map_type = self._get_map_type(filepath) + " (Local)"
+                        count += 1
+        except Exception as e:
+            pass
+        return count
+    
+    def _search_cache_directory(self, scene, directory, query):
+        """Search cache directory for .s2ma map files"""
+        count = 0
+        try:
+            for root, dirs, files in os.walk(directory):
+                for filename in files:
+                    if filename.lower().endswith('.s2ma'):
+                        # .s2ma files have hashed names, show them anyway
+                        filepath = os.path.join(root, filename)
+                        item = scene.sc2_map_results.add()
+                        item.name = filename
+                        item.path = filepath
+                        item.map_type = "Cached (.s2ma)"
+                        count += 1
+        except Exception as e:
+            pass
+        return count
+    
+    def _get_map_type(self, path):
+        """Determine map type based on path"""
+        path_lower = path.lower()
+        if 'campaign' in path_lower:
+            return 'Campaign'
+        elif 'melee' in path_lower or 'ladder' in path_lower:
+            return 'Melee'
+        elif 'tutorial' in path_lower:
+            return 'Tutorial'
+        elif 'challenge' in path_lower:
+            return 'Challenge'
+        elif 'coop' in path_lower:
+            return 'Co-op'
+        else:
+            return 'Map'
+
+
+class SC2_OT_ImportMapFromCASC(bpy.types.Operator):
+    """Import selected SC2 map from search results"""
+    bl_idname = "sc2.import_map_from_casc"
+    bl_label = "Import Selected Map"
+    bl_description = "Import the selected map (from CASC, local files, or cache)"
+    
+    def execute(self, context):
+        scene = context.scene
+        
+        if not scene.sc2_map_results:
+            self.report({'WARNING'}, "No map search results available. Please search first.")
+            return {'CANCELLED'}
+        
+        if scene.sc2_active_map_index >= len(scene.sc2_map_results):
+            self.report({'WARNING'}, "No map selected")
+            return {'CANCELLED'}
+        
+        selected_map = scene.sc2_map_results[scene.sc2_active_map_index]
+        map_path = selected_map.path
+        map_filename = selected_map.name
+        map_type = selected_map.map_type
+        
+        # Check if this is a local file or CASC path
+        if "(Local)" in map_type or "(Cached" in map_type:
+            # It's a local file - import directly
+            return self._import_local_map(map_path, map_filename)
+        else:
+            # It's a CASC path - extract first
+            return self._import_casc_map(map_path, map_filename)
+    
+    def _import_local_map(self, filepath, filename):
+        """Import a local .SC2Map or .s2ma file"""
+        if not os.path.exists(filepath):
+            self.report({'ERROR'}, f"File not found: {filepath}")
+            return {'CANCELLED'}
+        
+        self.report({'INFO'}, f"Importing local map: {filename}...")
+        
+        try:
+            importer = MapImporter(filepath, self.report)
+            importer.import_map()
+            self.report({'INFO'}, f"Successfully imported map: {filename}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Map import failed: {str(e)}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+    
+    def _import_casc_map(self, casc_path, filename):
+        """Extract and import a map from CASC archive"""
+        # Create temp directory for extraction
+        temp_dir = tempfile.mkdtemp(prefix="sc2_map_")
+        map_dest = os.path.join(temp_dir, filename)
+        
+        try:
+            # Initialize CASC
+            casc = CascWrapper()
+            if not casc.open_storage():
+                self.report({'ERROR'}, "Failed to open SC2 storage")
+                return {'CANCELLED'}
+            
+            # Extract map
+            self.report({'INFO'}, f"Extracting {filename} from CASC...")
+            if not casc.extract_file(casc_path, map_dest):
+                self.report({'ERROR'}, f"Failed to extract {filename}")
+                casc.close_storage()
+                return {'CANCELLED'}
+            
+            casc.close_storage()
+            
+            # Import the extracted map
+            self.report({'INFO'}, f"Importing {filename}...")
+            importer = MapImporter(map_dest, self.report)
+            importer.import_map()
+            
+            self.report({'INFO'}, f"Successfully imported map: {filename}")
+            
+        except Exception as e:
+            self.report({'ERROR'}, f"Map import failed: {str(e)}")
+            return {'CANCELLED'}
+        
+        return {'FINISHED'}
+
+
 class SC2_OT_SearchAssetsV2(bpy.types.Operator):
     bl_idname = "sc2.search_assets_v2"
     bl_label = "Search SC2 Assets"

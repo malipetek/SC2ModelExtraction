@@ -7,6 +7,11 @@ class SearchResultItem(bpy.types.PropertyGroup):
     file_type: bpy.props.StringProperty(name="Type")
     preview_id: bpy.props.IntProperty(name="Preview ID", default=0)
 
+class MapResultItem(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty(name="Map Name")
+    path: bpy.props.StringProperty(name="CASC Path")
+    map_type: bpy.props.StringProperty(name="Map Type")
+
 class SC2_PT_AssetBrowserPanelV2(bpy.types.Panel):
     bl_label = "SC2 Asset Browser (v2)"
     bl_idname = "SC2_PT_asset_browser_v2"
@@ -73,9 +78,39 @@ class SC2_PT_AssetBrowserPanelV2(bpy.types.Panel):
         row.scale_y = 1.5
         row.operator("sc2.import_asset_v2", text="Import Selected", icon='IMPORT')
 
+        # Map Browser section
         layout.separator()
-        row = layout.row()
-        row.operator("sc2.import_map", text="Import Map (.SC2Map)", icon='SCENE_DATA')
+        box = layout.box()
+        box.label(text="Map Browser:", icon='WORLD_DATA')
+        
+        # Search for maps in CASC
+        row = box.row(align=True)
+        row.prop(scene, "sc2_map_search_query", text="")
+        row.operator("sc2.search_maps", text="", icon='VIEWZOOM')
+        
+        # Map results list
+        if hasattr(scene, "sc2_map_results") and len(scene.sc2_map_results) > 0:
+            box.template_list(
+                "SC2_UL_MapResults",
+                "",
+                scene,
+                "sc2_map_results",
+                scene,
+                "sc2_active_map_index",
+                rows=4
+            )
+            
+            # Import selected map from CASC
+            row = box.row()
+            row.scale_y = 1.3
+            row.operator("sc2.import_map_from_casc", text="Import Selected Map", icon='IMPORT')
+        else:
+            box.label(text="Click search to find maps in CASC", icon='INFO')
+        
+        # Separator and fallback to file browser
+        box.separator()
+        row = box.row()
+        row.operator("sc2.import_map", text="Import from File...", icon='FILE_FOLDER')
         
         # Export Tools section
         layout.separator()
@@ -218,6 +253,22 @@ class SC2_UL_SearchResults(bpy.types.UIList):
                 
         return flt_flags, flt_neworder
 
+class SC2_UL_MapResults(bpy.types.UIList):
+    """UIList for displaying SC2 map search results"""
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
+        if self.layout_type in {'DEFAULT', 'COMPACT'}:
+            row = layout.row()
+            row.label(text=item.name, icon='WORLD_DATA')
+            
+            # Right align the map type
+            sub = row.row()
+            sub.alignment = 'RIGHT'
+            sub.label(text=item.map_type)
+            
+        elif self.layout_type in {'GRID'}:
+            layout.alignment = 'CENTER'
+            layout.label(text="", icon='WORLD_DATA')
+
 def register():
     if not hasattr(bpy.types.Scene, 'sc2_search_query'):
         bpy.types.Scene.sc2_search_query = bpy.props.StringProperty(
@@ -267,6 +318,21 @@ def register():
             description="Name of the currently previewed texture",
             default=""
         )
+    
+    # Map browser properties
+    if not hasattr(bpy.types.Scene, 'sc2_map_search_query'):
+        bpy.types.Scene.sc2_map_search_query = bpy.props.StringProperty(
+            name="Map Search",
+            description="Search pattern for maps (e.g., *Campaign*, *Melee*)",
+            default="*.SC2Map"
+        )
+    if not hasattr(bpy.types.Scene, 'sc2_map_results'):
+        bpy.types.Scene.sc2_map_results = bpy.props.CollectionProperty(type=MapResultItem)
+    if not hasattr(bpy.types.Scene, 'sc2_active_map_index'):
+        bpy.types.Scene.sc2_active_map_index = bpy.props.IntProperty(
+            name="Active Map",
+            default=0
+        )
 
 def unregister():
     if hasattr(bpy.types.Scene, 'sc2_search_query'):
@@ -283,3 +349,10 @@ def unregister():
         del bpy.types.Scene.sc2_texture_view_mode
     if hasattr(bpy.types.Scene, 'sc2_preview_texture'):
         del bpy.types.Scene.sc2_preview_texture
+    # Map browser properties
+    if hasattr(bpy.types.Scene, 'sc2_map_search_query'):
+        del bpy.types.Scene.sc2_map_search_query
+    if hasattr(bpy.types.Scene, 'sc2_map_results'):
+        del bpy.types.Scene.sc2_map_results
+    if hasattr(bpy.types.Scene, 'sc2_active_map_index'):
+        del bpy.types.Scene.sc2_active_map_index
