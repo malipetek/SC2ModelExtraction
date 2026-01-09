@@ -62,6 +62,17 @@ class SC2_PT_AssetBrowserPanelV2(bpy.types.Panel):
         # Texture preview section (only show when texture filter is active)
         if is_texture_filter and hasattr(scene, 'sc2_preview_texture') and scene.sc2_preview_texture:
             self.draw_texture_preview(context, layout, scene)
+
+        # Sound preview section
+        is_sound_filter = scene.sc2_filter_type == 'SOUND'
+        if is_sound_filter:
+            # Add a preview button if not already previewing or to change preview
+            if hasattr(scene, "sc2_search_results") and len(scene.sc2_search_results) > 0:
+                 row = box.row()
+                 row.operator("sc2.load_sound_preview", text="Preview Selected Sound", icon='PLAY')
+
+            if hasattr(scene, 'sc2_preview_sound') and scene.sc2_preview_sound:
+                self.draw_sound_preview(context, layout, scene)
         
         # Options section
         box = layout.box()
@@ -167,6 +178,26 @@ class SC2_PT_AssetBrowserPanelV2(bpy.types.Panel):
         else:
             box.label(text="Preview not available")
 
+    def draw_sound_preview(self, context, layout, scene):
+        """Draw sound preview panel"""
+        box = layout.box()
+        box.label(text="Sound Preview:", icon='SOUND')
+
+        # Sound info
+        col = box.column(align=True)
+        col.label(text=f"Name: {scene.sc2_preview_sound}")
+
+        # Player controls
+        row = box.row(align=True)
+        row.scale_y = 1.2
+        row.operator("sc2.play_sound", text="Play", icon='PLAY')
+        row.operator("sc2.stop_sound", text="Stop", icon='PAUSE')
+
+        # Save button
+        row = box.row()
+        row.scale_y = 1.2
+        row.operator("sc2.save_sound_as", text="Save Sound", icon='EXPORT')
+
 class SC2_UL_SearchResults(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
@@ -263,6 +294,18 @@ def register():
             description="Name of the currently previewed texture",
             default=""
         )
+    if not hasattr(bpy.types.Scene, 'sc2_preview_sound'):
+        bpy.types.Scene.sc2_preview_sound = bpy.props.StringProperty(
+            name="Preview Sound",
+            description="Name of the currently previewed sound",
+            default=""
+        )
+    if not hasattr(bpy.types.Scene, 'sc2_preview_sound_path'):
+        bpy.types.Scene.sc2_preview_sound_path = bpy.props.StringProperty(
+            name="Preview Sound Path",
+            description="Path to the currently previewed sound",
+            default=""
+        )
 
 def unregister():
     if hasattr(bpy.types.Scene, 'sc2_search_query'):
@@ -279,3 +322,7 @@ def unregister():
         del bpy.types.Scene.sc2_texture_view_mode
     if hasattr(bpy.types.Scene, 'sc2_preview_texture'):
         del bpy.types.Scene.sc2_preview_texture
+    if hasattr(bpy.types.Scene, 'sc2_preview_sound'):
+        del bpy.types.Scene.sc2_preview_sound
+    if hasattr(bpy.types.Scene, 'sc2_preview_sound_path'):
+        del bpy.types.Scene.sc2_preview_sound_path

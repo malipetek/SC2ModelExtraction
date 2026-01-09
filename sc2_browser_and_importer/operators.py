@@ -2,7 +2,11 @@ import bpy
 import os
 import shutil
 import tempfile
+import aud
 from .casc_wrapper import CascWrapper
+
+# Global sound handle to keep track of playback
+_sound_handle = None
 from .m3_analyzer import M3Analyzer
 
 class SC2_OT_SearchAssetsV2(bpy.types.Operator):
@@ -975,6 +979,174 @@ class SC2_OT_LoadTexturePreview(bpy.types.Operator):
             self.report({'ERROR'}, f"Failed to load texture: {str(e)}")
             return {'CANCELLED'}
         
+        return {'FINISHED'}
+
+
+class SC2_OT_LoadSoundPreview(bpy.types.Operator):
+    """Load selected sound from search results for preview"""
+    bl_idname = "sc2.load_sound_preview"
+    bl_label = "Preview Sound"
+    bl_description = "Load the selected sound for preview"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        scene = context.scene
+
+        if not scene.sc2_search_results:
+            self.report({'WARNING'}, "No search results")
+            return {'CANCELLED'}
+
+        if scene.sc2_active_result_index >= len(scene.sc2_search_results):
+            self.report({'WARNING'}, "No sound selected")
+            return {'CANCELLED'}
+
+        selected_item = scene.sc2_search_results[scene.sc2_active_result_index]
+        casc_path = selected_item.path
+
+        # Check if it's audio (allow some flexibility in case file_type isn't perfect)
+        if 'Audio' not in selected_item.file_type and not casc_path.lower().endswith(('.ogg', '.wav')):
+             self.report({'WARNING'}, "Selected file is not an audio file")
+             return {'CANCELLED'}
+
+        # Extract sound
+        temp_dir = tempfile.mkdtemp(prefix="sc2_sound_preview_")
+        sound_filename = os.path.basename(casc_path.replace('\\', '/'))
+        sound_dest = os.path.join(temp_dir, sound_filename)
+
+        try:
+            casc = CascWrapper()
+            if not casc.open_storage():
+                self.report({'ERROR'}, "Failed to open SC2 storage")
+                return {'CANCELLED'}
+
+            if not casc.extract_file(casc_path, sound_dest):
+                self.report({'ERROR'}, f"Failed to extract {sound_filename}")
+                casc.close_storage()
+                return {'CANCELLED'}
+
+            casc.close_storage()
+
+            # Update Scene properties
+            scene.sc2_preview_sound = sound_filename
+            scene.sc2_preview_sound_path = sound_dest
+
+            self.report({'INFO'}, f"Loaded sound: {sound_filename}")
+
+            # Auto play
+            bpy.ops.sc2.play_sound()
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to load sound: {str(e)}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+
+class SC2_OT_PlaySound(bpy.types.Operator):
+    """Play the loaded preview sound"""
+    bl_idname = "sc2.play_sound"
+    bl_label = "Play Sound"
+    bl_description = "Play the currently loaded preview sound"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        global _sound_handle
+        scene = context.scene
+
+        if not hasattr(scene, 'sc2_preview_sound_path') or not scene.sc2_preview_sound_path:
+            self.report({'WARNING'}, "No sound loaded")
+            return {'CANCELLED'}
+
+        filepath = scene.sc2_preview_sound_path
+        if not os.path.exists(filepath):
+             self.report({'ERROR'}, "Sound file not found")
+             return {'CANCELLED'}
+
+        try:
+            # Stop existing
+            if _sound_handle:
+                try:
+                    _sound_handle.stop()
+                except:
+                    pass
+
+            device = aud.Device()
+            sound = aud.Sound(filepath)
+            _sound_handle = device.play(sound)
+
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to play sound: {str(e)}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+
+class SC2_OT_StopSound(bpy.types.Operator):
+    """Stop the currently playing sound"""
+    bl_idname = "sc2.stop_sound"
+    bl_label = "Stop Sound"
+    bl_description = "Stop audio playback"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        global _sound_handle
+        if _sound_handle:
+            try:
+                _sound_handle.stop()
+            except:
+                pass
+            _sound_handle = None
+        return {'FINISHED'}
+
+
+class SC2_OT_SaveSoundAs(bpy.types.Operator):
+    """Save the previewed sound"""
+    bl_idname = "sc2.save_sound_as"
+    bl_label = "Save Sound As"
+    bl_description = "Save the current preview sound to a file"
+    bl_options = {'REGISTER'}
+
+    filepath: bpy.props.StringProperty(
+        name="File Path",
+        description="Path to save the sound",
+        subtype='FILE_PATH'
+    )
+
+    filter_glob: bpy.props.StringProperty(
+        default="*.ogg;*.wav",
+        options={'HIDDEN'}
+    )
+
+    def invoke(self, context, event):
+        scene = context.scene
+
+        if hasattr(scene, 'sc2_preview_sound') and scene.sc2_preview_sound:
+            self.filepath = scene.sc2_preview_sound
+        else:
+            self.filepath = "sound.ogg"
+
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        scene = context.scene
+
+        if not hasattr(scene, 'sc2_preview_sound_path') or not scene.sc2_preview_sound_path:
+            self.report({'ERROR'}, "No sound loaded for preview")
+            return {'CANCELLED'}
+
+        src_path = scene.sc2_preview_sound_path
+        if not os.path.exists(src_path):
+            self.report({'ERROR'}, "Source sound file missing")
+            return {'CANCELLED'}
+
+        try:
+            shutil.copy2(src_path, self.filepath)
+            self.report({'INFO'}, f"Saved sound to: {self.filepath}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to save sound: {str(e)}")
+            return {'CANCELLED'}
+
         return {'FINISHED'}
 
 
