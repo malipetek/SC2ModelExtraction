@@ -4,6 +4,28 @@ import shutil
 import tempfile
 from .casc_wrapper import CascWrapper
 from .m3_analyzer import M3Analyzer
+from .map_importer import MapImporter
+
+class SC2_OT_ImportMap(bpy.types.Operator):
+    bl_idname = "sc2.import_map"
+    bl_label = "Import SC2 Map"
+    bl_description = "Import an SC2 Map file (.SC2Map)"
+
+    filepath: bpy.props.StringProperty(subtype="FILE_PATH")
+    filter_glob: bpy.props.StringProperty(default="*.SC2Map", options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        if not self.filepath:
+            return {'CANCELLED'}
+
+        importer = MapImporter(self.filepath, self.report)
+        importer.import_map()
+
+        return {'FINISHED'}
 
 class SC2_OT_SearchAssetsV2(bpy.types.Operator):
     bl_idname = "sc2.search_assets_v2"

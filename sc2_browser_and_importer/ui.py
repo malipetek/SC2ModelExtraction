@@ -72,6 +72,10 @@ class SC2_PT_AssetBrowserPanelV2(bpy.types.Panel):
         row = layout.row()
         row.scale_y = 1.5
         row.operator("sc2.import_asset_v2", text="Import Selected", icon='IMPORT')
+
+        layout.separator()
+        row = layout.row()
+        row.operator("sc2.import_map", text="Import Map (.SC2Map)", icon='SCENE_DATA')
         
         # Export Tools section
         layout.separator()
